@@ -35,7 +35,6 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.example.pj4test.ProjectConfiguration
 import java.util.LinkedList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -44,9 +43,11 @@ import com.example.pj4test.databinding.FragmentCameraBinding
 import org.tensorflow.lite.task.vision.detector.Detection
 
 import android.speech.tts.TextToSpeech
+import com.example.pj4test.ProjectConfiguration
+import com.example.pj4test.audioInference.LumosClassifier
 import java.util.Locale
 
-class CameraFragment : Fragment(), PersonClassifier.DetectorListener {
+class CameraFragment : Fragment(), PersonClassifier.DetectorListener, LumosClassifier.DetectorListener {
     private val TAG = "CameraFragment"
 
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
@@ -55,8 +56,13 @@ class CameraFragment : Fragment(), PersonClassifier.DetectorListener {
         get() = _fragmentCameraBinding!!
     
     private lateinit var personView: TextView
-    
+
+    // Classfiers
     private lateinit var personClassifier: PersonClassifier
+    private lateinit var lumosClassifier: LumosClassifier
+
+    private var lumos: Boolean = false // If true, detect and read the object in camera.
+
     private lateinit var bitmapBuffer: Bitmap
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
@@ -65,9 +71,8 @@ class CameraFragment : Fragment(), PersonClassifier.DetectorListener {
     /** Blocking camera operations are performed using this executor */
     private lateinit var cameraExecutor: ExecutorService
 
-    /* IMPLEMENTED IN PROJECT 4. */
     private lateinit var tts: TextToSpeech
-    private var time_to_speak: Int = 0
+    private var timeToSpeak: Int = 0
 
     override fun onDestroyView() {
         _fragmentCameraBinding = null
@@ -90,6 +95,10 @@ class CameraFragment : Fragment(), PersonClassifier.DetectorListener {
     @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        lumosClassifier = LumosClassifier()
+        lumosClassifier.initialize(requireContext())
+        lumosClassifier.setDetectorListener(this)
 
         personClassifier = PersonClassifier()
         personClassifier.initialize(requireContext())
@@ -216,77 +225,106 @@ class CameraFragment : Fragment(), PersonClassifier.DetectorListener {
         imageHeight: Int,
         imageWidth: Int
     ) {
-        activity?.runOnUiThread {
-            // Pass necessary information to OverlayView for drawing on the canvas
-            fragmentCameraBinding.overlay.setResults(
-                results ?: LinkedList<Detection>(),
-                imageHeight,
-                imageWidth
-            )
+        if (lumos) {
+            activity?.runOnUiThread {
+                // Pass necessary information to OverlayView for drawing on the canvas
+                fragmentCameraBinding.overlay.setResults(
+                    results ?: LinkedList<Detection>(),
+                    imageHeight,
+                    imageWidth
+                )
 
-            /* IMPLEMENTED IN PROJECT 4. */
-            val detectObjectList: List<String> = listOf(
-                "person", "chair", "couch", "bench", "bicycle", "motorcycle", "bus", "car", "train"
-            )
+                /* IMPLEMENTED IN PROJECT 4. */
+                val detectObjectList: List<String> = listOf(
+                    "person",
+                    "chair",
+                    "couch",
+                    "bench",
+                    "bicycle",
+                    "motorcycle",
+                    "bus",
+                    "car",
+                    "train"
+                )
 
-            var speech: String = "Nothing detected."
-            if (results != null) {
-                val detectedObjects: List<String> = results.map {
-                    it.categories[0].label
-                }
+                var speech: String = "Nothing detected."
+                if (results != null) {
+                    val detectedObjects: List<String> = results.map {
+                        it.categories[0].label
+                    }
 
-                // 'objectCounts' is a list of Pair<String, Int>,
-                // where the first element is one of "person", "chair", "vehicle"
-                // and the second element is the count of each objects.
-                val detectedTargets = detectedObjects.filter {it in detectObjectList}
+                    // 'objectCounts' is a list of Pair<String, Int>,
+                    // where the first element is one of "person", "chair", "vehicle"
+                    // and the second element is the count of each objects.
+                    val detectedTargets = detectedObjects.filter { it in detectObjectList }
 
-                val totalTargetCount = detectedTargets.size
+                    val totalTargetCount = detectedTargets.size
 
-                val objectCounts: List<Pair<String, Int>> = detectedTargets.map { it ->
-                    if (it == "couch" || it == "bench") "chair"
-                    else if (it in listOf("bicycle", "motorcycle", "bus", "car", "train")) "vehicle"
-                    else it
-                }.groupingBy { it }
-                    .eachCount()
-                    .toList()
-                    .map { it.first to it.second }
+                    val objectCounts: List<Pair<String, Int>> = detectedTargets.map { it ->
+                        if (it == "couch" || it == "bench") "chair"
+                        else if (it in listOf(
+                                "bicycle",
+                                "motorcycle",
+                                "bus",
+                                "car",
+                                "train"
+                            )
+                        ) "vehicle"
+                        else it
+                    }.groupingBy { it }
+                        .eachCount()
+                        .toList()
+                        .map { it.first to it.second }
 
-                if (totalTargetCount == 0) {
-                    speech = "Nothing detected."
-                } else {
-                    speech = ""
-                    objectCounts.forEachIndexed { idx, it ->
-                        if (idx == objectCounts.size - 1) {
-                            speech += it.second.toString() + " " + it.first + "."
-                        } else {
-                            speech += it.second.toString() + " " + it.first + ", "
+                    if (totalTargetCount == 0) {
+                        speech = "Nothing detected."
+                    } else {
+                        speech = ""
+                        objectCounts.forEachIndexed { idx, it ->
+                            if (idx == objectCounts.size - 1) {
+                                speech += it.second.toString() + " " + it.first + "."
+                            } else {
+                                speech += it.second.toString() + " " + it.first + ", "
+                            }
                         }
                     }
+
+                    /* READ THE SPEECH WITH TTS */
+                    timeToSpeak++
+                    if (timeToSpeak % 120 == 0) {
+                        tts.speak(speech, TextToSpeech.QUEUE_FLUSH, null, null)
+                        timeToSpeak = 1
+                    }
+
                 }
 
-                Log.d(TAG, objectCounts.toString())
-                Log.d(TAG, speech)
+                // Force a redraw
+                fragmentCameraBinding.overlay.invalidate()
 
-                /* READ THE SPEECH WITH TTS */
-                time_to_speak++
-                if (time_to_speak % 120 == 0) {
-                    tts.speak(speech, TextToSpeech.QUEUE_FLUSH, null, null)
-                    time_to_speak = 1
-                }
-
+                // Show result to a view.
+                personView.text = speech
             }
-
-            // Force a redraw
-            fragmentCameraBinding.overlay.invalidate()
-
-            // Show result to a view.
-            personView.text = speech
         }
     }
 
     override fun onObjectDetectionError(error: String) {
         activity?.runOnUiThread {
             Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /* IMPLEMENTED IN PROJECT 4. */
+    override fun onResults(command: String?) {
+        if (command == "on") {
+            Log.d(TAG, "Lumos ON")
+            lumos = true
+            personView.setBackgroundColor(ProjectConfiguration.activeBackgroundColor)
+            personView.setTextColor(ProjectConfiguration.activeTextColor)
+        } else if (command == "off") {
+            Log.d(TAG, "Lumos OFF")
+            lumos = false
+            personView.setBackgroundColor(ProjectConfiguration.idleBackgroundColor)
+            personView.setTextColor(ProjectConfiguration.idleTextColor)
         }
     }
 }

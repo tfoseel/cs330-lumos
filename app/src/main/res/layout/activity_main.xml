@@ -14,19 +14,8 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/audioFragmentContainerView"
-        tools:layout="@layout/fragment_camera" />
-
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/audioFragmentContainerView"
-        android:name="com.example.pj4test.fragment.AudioFragment"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/cameraFragmentContainerView"
-        tools:layout="@layout/fragment_audio" />
+        tools:layout="@layout/fragment_camera" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

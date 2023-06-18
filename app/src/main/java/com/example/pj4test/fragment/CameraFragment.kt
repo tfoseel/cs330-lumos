@@ -290,11 +290,8 @@ class CameraFragment : Fragment(), PersonClassifier.DetectorListener, LumosClass
                     }
 
                     /* READ THE SPEECH WITH TTS */
-                    timeToSpeak++
-                    if (timeToSpeak % 120 == 0) {
-                        tts.speak(speech, TextToSpeech.QUEUE_FLUSH, null, null)
-                        timeToSpeak = 1
-                    }
+                    tts.speak(speech, TextToSpeech.QUEUE_FLUSH, null, null)
+                    timeToSpeak = 1
 
                 }
 

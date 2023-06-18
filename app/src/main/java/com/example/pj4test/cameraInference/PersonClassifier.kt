@@ -37,6 +37,9 @@ class PersonClassifier {
     // Listener that will be handle the result of this classifier
     private var objectDetectorListener: DetectorListener? = null
 
+    // Timer to control the inference rate
+    private var timeToClassify: Int = 0
+
     fun initialize(context: Context) {
         setupObjectDetector(context)
     }
@@ -68,28 +71,33 @@ class PersonClassifier {
     }
 
     fun detect(image: Bitmap, imageRotation: Int) {
-        // Inference time is the difference between the system time at the start and finish of the
-        // process
-        var inferenceTime = SystemClock.uptimeMillis()
+        if (timeToClassify++ % 120 == 0 ) {
+            timeToClassify = 1
 
-        // Create preprocessor for the image.
-        // See https://www.tensorflow.org/lite/inference_with_metadata/
-        //            lite_support#imageprocessor_architecture
-        val imageProcessor =
-            ImageProcessor.Builder()
-                .add(Rot90Op(-imageRotation / 90))
-                .build()
+            // Inference time is the difference between the system time at the start and finish of the
+            // process
+            var inferenceTime = SystemClock.uptimeMillis()
 
-        // Preprocess the image and convert it into a TensorImage for detection.
-        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+            // Create preprocessor for the image.
+            // See https://www.tensorflow.org/lite/inference_with_metadata/
+            //            lite_support#imageprocessor_architecture
+            val imageProcessor =
+                ImageProcessor.Builder()
+                    .add(Rot90Op(-imageRotation / 90))
+                    .build()
 
-        val results = objectDetector.detect(tensorImage)
-        inferenceTime = SystemClock.uptimeMillis() - inferenceTime
-        objectDetectorListener?.onObjectDetectionResults(
-            results,
-            inferenceTime,
-            tensorImage.height,
-            tensorImage.width)
+            // Preprocess the image and convert it into a TensorImage for detection.
+            val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+
+            val results = objectDetector.detect(tensorImage)
+            inferenceTime = SystemClock.uptimeMillis() - inferenceTime
+            objectDetectorListener?.onObjectDetectionResults(
+                results,
+                inferenceTime,
+                tensorImage.height,
+                tensorImage.width
+            )
+        }
     }
 
     interface DetectorListener {

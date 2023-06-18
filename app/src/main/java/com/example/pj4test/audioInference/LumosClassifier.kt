@@ -39,7 +39,7 @@ class LumosClassifier {
         /* IMPLEMENTED IN PROJECT 4. */
         val options = AudioClassifier.AudioClassifierOptions.builder()
             .setScoreThreshold(THRESHOLD)
-            .setMaxResults(DEFAULT_NUM_OF_RESULTS )
+            .setMaxResults(DEFAULT_NUM_OF_RESULTS)
             .setBaseOptions(BaseOptions.builder().build())
             .build()
         classifier = AudioClassifier.createFromFileAndOptions(context, "speech.tflite", options)
